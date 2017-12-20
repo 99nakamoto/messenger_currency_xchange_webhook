@@ -17,8 +17,7 @@ const
     body_parser = require('body-parser'),
     app = express().use(body_parser.json()); // creates express http server
 
-//const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
-const PAGE_ACCESS_TOKEN = "EAAMM5NZAN0jcBAEZASMkBlyTuA5qF4nBl90ZCDLSaPzGvMe2rxqjekPqZBpR7ZC2a9Nihy49LaDM7v1Cg9ntEFfUYlv4Fp4mIJDDnhhF3OliCcZCc5fbsWZA5rPIR77UdQQORaOTRjqWNR6M09Gf9PeSdAQJkAZBIet8hl3bkDJtBgZDZD";
+const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 
 // Sets server port and logs message on success
 app.listen(process.env.PORT || 1337, () => console.log('webhook is listening'));
@@ -92,20 +91,59 @@ app.get('/webhook', (req, res) => {
     }
 });
 
+function hiMessage(recipientId) {
+    var response = {
+            text: `
+Congrats on setting up your Messenger Bot!
+
+Right now, your bot can only respond to a few words. Try out "quick reply", "typing on", "button", or "image" to see how they work. You'll find a complete list of these commands in the "app.js" file. Anything else you type will just be mirrored until you create additional commands.
+
+For more details on how to create commands, go to https://developers.facebook.com/docs/messenger-platform/reference/send-api.
+      `
+    }
+
+    return response;
+}
+
+function convertCurrency(receivedNumber) {
+    var response = {
+        text: receivedNumber + " SGD is equivalent of 10 USD"
+    }
+
+    return response;
+}
+
+function httpGet(theUrl) {
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open( "GET", theUrl, false ); // false for synchronous request
+    xmlHttp.send( null );
+    return xmlHttp.responseText;
+}
+
 // Handles messages events
 function handleMessage(sender_psid, received_message) {
-
     let response;
 
     // Checks if the message contains text
     if (received_message.text) {
 
-        // Creates the payload for a basic text message, which
-        // will be added to the body of our request to the Send API
-        response = {
-            "text": `You sent the message: "${received_message.text}". Now send me an attachment!`
-        }
+        var messageText = received_message.text;
 
+        switch (messageText.replace(/[^\w\s]/gi, '').trim().toLowerCase()) {
+            case 'hello':
+            case 'hi':
+                response = hiMessage(sender_psid);
+                break;
+            default:
+                var numericMessage = parseInt(messageText);
+                if (isNaN(numericMessage)) {
+                    response = {
+                        "text": `You sent the message: "${messageText}". Now send me an attachment!`
+                    }
+                } else {
+                    response = convertCurrency(numericMessage);
+                }
+        }
     } else if (received_message.attachments) {
         // Get the URL of the message attachment
         let attachment_url = received_message.attachments[0].payload.url;
