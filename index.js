@@ -13,6 +13,7 @@
 // Imports dependencies and set up http server
 const
     request = require('request'),
+    sync_request = require('sync-request'),
     express = require('express'),
     body_parser = require('body-parser'),
     app = express().use(body_parser.json()); // creates express http server
@@ -93,7 +94,7 @@ app.get('/webhook', (req, res) => {
 
 function hiMessage(recipientId) {
     var response = {
-            text: `
+            "text": `
 Congrats on setting up your Messenger Bot!
 
 Right now, your bot can only respond to a few words. Try out "quick reply", "typing on", "button", or "image" to see how they work. You'll find a complete list of these commands in the "app.js" file. Anything else you type will just be mirrored until you create additional commands.
@@ -106,18 +107,32 @@ For more details on how to create commands, go to https://developers.facebook.co
 }
 
 function convertCurrency(receivedNumber) {
-    var response = {
-        text: receivedNumber + " SGD is equivalent of 10 USD"
+    var response;
+    
+    var RatesApi = require('openexchangerates-api');
+    var client = new RatesApi({
+      appId: 'adbe1e817ef84112ba152d896d965b8e'
+    });
+    
+    response = client.latest({base: 'USD'}, function handleLatest(err, data) {
+      if (err) {
+        throw err;
+      }
+      else {
+        // TODO: this is async call, save this to Mongo and use it.
+        // console.dir("rate is " + data.rates.SGD);
+      }
+    });
+
+    var res = sync_request('GET', 'https://openexchangerates.org/api/latest.json?app_id=adbe1e817ef84112ba152d896d965b8e');
+    var json = JSON.parse(res.body.toString());
+    
+    var resultNumber = receivedNumber / json.rates.SGD;
+    response = {
+        "text": receivedNumber + " SGD is equivalent of " + resultNumber + " USD"
     }
 
     return response;
-}
-
-function httpGet(theUrl) {
-    var xmlHttp = new XMLHttpRequest();
-    xmlHttp.open( "GET", theUrl, false ); // false for synchronous request
-    xmlHttp.send( null );
-    return xmlHttp.responseText;
 }
 
 // Handles messages events
