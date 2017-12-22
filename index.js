@@ -65,43 +65,59 @@ app.post('/webhook', (req, res) => {
 
 });
 
-
-app.get('/', (req, res) => {
+app.get('/update_currency', (req, res) => {
     var url = "mongodb://ran:wei@ds163656.mlab.com:63656/mongo_xchange";
     var collectionName = "currency_rates";
 
+    var RatesApi = require('openexchangerates-api');
+    var client = new RatesApi({
+      appId: 'adbe1e817ef84112ba152d896d965b8e'
+    });
     
-    // Connect to the db
-    var MongoClient = require('mongodb').MongoClient;
-    MongoClient.connect(url, function (err, db) {
-        db.collection(collectionName, function (err, collection) {
-            // update, can also use collection.save({_id:"abc", user:"David"},{w:1}, callback)
-            collection.update(
-                {Currency: "SGD"}, 
-                {Currency: "SGD", Rate:194}, 
-                {upsert:true, w: 1},
-                function(err, result) {
-                    collection.findOne({Currency:"SGD"}, function(err, item) {
-                        assert.equal(null, err);
-                        assert.equal(194, item.Rate);
-                        db.close();
-                    });
+    var response = client.latest({base: 'USD'}, function handleLatest(err, data) {
+      if (err) {
+        throw err;
+      }
+      else {
+        console.log(data);
+        
+        // Connect to the db
+        var MongoClient = require('mongodb').MongoClient;
+        MongoClient.connect(url, function (err, db) {
+            db.collection(collectionName, function (err, collection) {
+                // update
+                var keys = Object.keys(data.rates);
+                for( var i = 0, length = keys.length; i < length; i++ ) {
+                    var currencyCode = keys[i];
+                    var currencyRate = data.rates[keys[i]];
+                    collection.update(
+                        {Currency: currencyCode}, 
+                        {Currency: currencyCode, Rate: currencyRate},
+                        {upsert: true, w: 1},
+                        function(err, result) {
+                            collection.findOne(
+                                {Currency: currencyCode}, 
+                                function(err, item) {
+                                    assert.equal(null, err);
+                            });
+                        }
+                    );
                 }
-            );
 
-            // find
-            collection.find().toArray(function(err, items) {
-                if(err) throw err;    
-                console.log("print all items in MongoDB: ");
-                console.log(items);
+                // find all items and print all
+                collection.find().toArray(function(err, items) {
+                    if(err) throw err;    
+                    console.log("print items in MongoDB: ");
+                    console.log(items);
+                    db.close();
+                });
             });
         });
+      }
     });
-
+    
     res.send('Hello World!');
 });
-
-
 
 // Accepts GET requests at the /webhook endpoint
 app.get('/webhook', (req, res) => {
@@ -143,28 +159,11 @@ Try to send a number.
 }
 
 function convertCurrency(receivedNumber) {
-    var response;
-    
-    var RatesApi = require('openexchangerates-api');
-    var client = new RatesApi({
-      appId: 'adbe1e817ef84112ba152d896d965b8e'
-    });
-    
-    response = client.latest({base: 'USD'}, function handleLatest(err, data) {
-      if (err) {
-        throw err;
-      }
-      else {
-        // TODO: this is async call, save this to Mongo and use it.
-        // console.dir("rate is " + data.rates.SGD);
-      }
-    });
-
     var res = sync_request('GET', 'https://openexchangerates.org/api/latest.json?app_id=adbe1e817ef84112ba152d896d965b8e');
     var json = JSON.parse(res.body.toString());
     
     var resultNumber = receivedNumber / json.rates.SGD;
-    response = {
+    var response = {
         "text": receivedNumber + " SGD is equivalent of " + resultNumber + " USD"
     }
 
