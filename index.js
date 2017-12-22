@@ -16,6 +16,7 @@ const
     sync_request = require('sync-request'),
     express = require('express'),
     body_parser = require('body-parser'),
+    assert = require('assert'),
     app = express().use(body_parser.json()); // creates express http server
 
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
@@ -64,6 +65,44 @@ app.post('/webhook', (req, res) => {
 
 });
 
+
+app.get('/', (req, res) => {
+    var url = "mongodb://ran:wei@ds163656.mlab.com:63656/mongo_xchange";
+    var collectionName = "currency_rates";
+
+    
+    // Connect to the db
+    var MongoClient = require('mongodb').MongoClient;
+    MongoClient.connect(url, function (err, db) {
+        db.collection(collectionName, function (err, collection) {
+            // update, can also use collection.save({_id:"abc", user:"David"},{w:1}, callback)
+            collection.update(
+                {Currency: "SGD"}, 
+                {Currency: "SGD", Rate:194}, 
+                {upsert:true, w: 1},
+                function(err, result) {
+                    collection.findOne({Currency:"SGD"}, function(err, item) {
+                        assert.equal(null, err);
+                        assert.equal(194, item.Rate);
+                        db.close();
+                    });
+                }
+            );
+
+            // find
+            collection.find().toArray(function(err, items) {
+                if(err) throw err;    
+                console.log("print all items in MongoDB: ");
+                console.log(items);
+            });
+        });
+    });
+
+    res.send('Hello World!');
+});
+
+
+
 // Accepts GET requests at the /webhook endpoint
 app.get('/webhook', (req, res) => {
 
@@ -95,11 +134,8 @@ app.get('/webhook', (req, res) => {
 function hiMessage(recipientId) {
     var response = {
             "text": `
-Congrats on setting up your Messenger Bot!
-
-Right now, your bot can only respond to a few words. Try out "quick reply", "typing on", "button", or "image" to see how they work. You'll find a complete list of these commands in the "app.js" file. Anything else you type will just be mirrored until you create additional commands.
-
-For more details on how to create commands, go to https://developers.facebook.com/docs/messenger-platform/reference/send-api.
+Thanks for using Currency Xchange Messenger Bot!
+Try to send a number.
       `
     }
 
@@ -153,7 +189,7 @@ function handleMessage(sender_psid, received_message) {
                 var numericMessage = parseInt(messageText);
                 if (isNaN(numericMessage)) {
                     response = {
-                        "text": `You sent the message: "${messageText}". Now send me an attachment!`
+                        "text": `You sent the message: "${messageText}". Now send me an number!`
                     }
                 } else {
                     response = convertCurrency(numericMessage);
