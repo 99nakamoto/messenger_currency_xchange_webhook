@@ -13,10 +13,8 @@
 // Imports dependencies and set up http server
 const
     request = require('request'),
-    sync_request = require('sync-request'),
     express = require('express'),
     body_parser = require('body-parser'),
-    assert = require('assert'),
     app = express().use(body_parser.json()); // creates express http server
 
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
@@ -85,6 +83,7 @@ app.get('/update_currency', (req, res) => {
             // Connect to the db
             MongoClient.connect(mongodbURL, function (err, db) {
                 db.collection(mongodbCollectionName, function (err, collection) {
+                    if (err) throw err;
                     // update
                     var keys = Object.keys(data.rates);
                     var dateTime = new Date();
@@ -106,7 +105,7 @@ app.get('/update_currency', (req, res) => {
                                         Currency: currencyCode
                                     },
                                     function (err, item) {
-                                        assert.equal(null, err);
+                                        if (err) throw err;
                                     });
                             }
                         );
