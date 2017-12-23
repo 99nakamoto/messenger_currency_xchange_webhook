@@ -63,7 +63,6 @@ app.post('/webhook', (req, res) => {
         // Return a '404 Not Found' if event is not from a page subscription
         res.sendStatus(404);
     }
-
 });
 
 app.get('/update_currency', (req, res) => {
@@ -153,17 +152,6 @@ app.get('/webhook', (req, res) => {
     }
 });
 
-function hiMessage(recipientId) {
-    var response = {
-        "text": `
-Thanks for using Currency Xchange Messenger Bot!
-Try to send a number.
-      `
-    }
-
-    return response;
-}
-
 function convertCurrency(receivedNumber, sender_psid, callback) {
     MongoClient.connect(mongodbURL, function (err, db) {
         if (err) throw err;
@@ -200,7 +188,12 @@ function handleMessage(sender_psid, received_message) {
         switch (messageText.replace(/[^\w\s]/gi, '').trim().toLowerCase()) {
             case 'hello':
             case 'hi':
-                response = hiMessage(sender_psid);
+                response = {
+                    "text": `
+Thanks for using Currency Xchange Messenger Bot!
+Try to send a number.
+                  `
+                }
                 // Sends the response message
                 callSendAPI(sender_psid, response);
                 break;
@@ -213,7 +206,7 @@ function handleMessage(sender_psid, received_message) {
                     // Sends the response message
                     callSendAPI(sender_psid, response);
                 } else {
-//                    TODO, here should have a callback for: callSendAPI(sender_psid, response);
+                    // Use callback to send the response message
                     convertCurrency(numericMessage, sender_psid, callSendAPI);
                 }
         }
@@ -245,8 +238,6 @@ function handleMessage(sender_psid, received_message) {
                 }
             }
         }
-        // Sends the response message
-        callSendAPI(sender_psid, response);
     }
 }
 
