@@ -21,12 +21,15 @@ const
 
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 
+var mongodbURL = "mongodb://ran:wei@ds163656.mlab.com:63656/mongo_xchange";
+var mongodbCollectionName = "currency_rates";
+var MongoClient = require('mongodb').MongoClient;
+
 // Sets server port and logs message on success
 app.listen(process.env.PORT || 1337, () => console.log('webhook is listening'));
 
 // Accepts POST requests at /webhook endpoint
 app.post('/webhook', (req, res) => {
-
     // Parse the request body from the POST
     let body = req.body;
 
@@ -66,62 +69,66 @@ app.post('/webhook', (req, res) => {
 });
 
 app.get('/update_currency', (req, res) => {
-    var url = "mongodb://ran:wei@ds163656.mlab.com:63656/mongo_xchange";
-    var collectionName = "currency_rates";
-
     var RatesApi = require('openexchangerates-api');
     var client = new RatesApi({
-      appId: 'adbe1e817ef84112ba152d896d965b8e'
+        appId: 'adbe1e817ef84112ba152d896d965b8e'
     });
-    
-    var response = client.latest({base: 'USD'}, function handleLatest(err, data) {
-      if (err) {
-        throw err;
-      }
-      else {
-        console.log(data);
-        
-        // Connect to the db
-        var MongoClient = require('mongodb').MongoClient;
-        MongoClient.connect(url, function (err, db) {
-            db.collection(collectionName, function (err, collection) {
-                // update
-                var keys = Object.keys(data.rates);
-                for( var i = 0, length = keys.length; i < length; i++ ) {
-                    var currencyCode = keys[i];
-                    var currencyRate = data.rates[keys[i]];
-                    collection.update(
-                        {Currency: currencyCode}, 
-                        {Currency: currencyCode, Rate: currencyRate},
-                        {upsert: true, w: 1},
-                        function(err, result) {
-                            collection.findOne(
-                                {Currency: currencyCode}, 
-                                function(err, item) {
-                                    assert.equal(null, err);
-                            });
-                        }
-                    );
-                }
 
-                // find all items and print all
-                collection.find().toArray(function(err, items) {
-                    if(err) throw err;    
-                    console.log("print items in MongoDB: ");
-                    console.log(items);
-                    db.close();
+    var response = client.latest({
+        base: 'USD'
+    }, function handleLatest(err, data) {
+        if (err) {
+            throw err;
+        } else {
+            console.log(data);
+
+            // Connect to the db
+            MongoClient.connect(mongodbURL, function (err, db) {
+                db.collection(mongodbCollectionName, function (err, collection) {
+                    // update
+                    var keys = Object.keys(data.rates);
+                    var dateTime = new Date();
+                    for (var i = 0, length = keys.length; i < length; i++) {
+                        var currencyCode = keys[i];
+                        var currencyRate = data.rates[keys[i]];
+                        collection.update({
+                                Currency: currencyCode
+                            }, {
+                                Currency: currencyCode,
+                                Rate: currencyRate,
+                                LastUpdate: dateTime
+                            }, {
+                                upsert: true,
+                                w: 1
+                            },
+                            function (err, result) {
+                                collection.findOne({
+                                        Currency: currencyCode
+                                    },
+                                    function (err, item) {
+                                        assert.equal(null, err);
+                                    });
+                            }
+                        );
+                    }
+
+                    // find all items and print all
+                    collection.find().toArray(function (err, items) {
+                        if (err) throw err;
+                        console.log("print items in MongoDB: ");
+                        console.log(items);
+                        db.close();
+                    });
                 });
             });
-        });
-      }
+        }
     });
-    
+
     res.send('Hello World!');
 });
 
 // Accepts GET requests at the /webhook endpoint
 app.get('/webhook', (req, res) => {
-
     /** UPDATE YOUR VERIFY TOKEN **/
     const VERIFY_TOKEN = "token";
 
@@ -149,7 +156,7 @@ app.get('/webhook', (req, res) => {
 
 function hiMessage(recipientId) {
     var response = {
-            "text": `
+        "text": `
 Thanks for using Currency Xchange Messenger Bot!
 Try to send a number.
       `
@@ -159,10 +166,25 @@ Try to send a number.
 }
 
 function convertCurrency(receivedNumber) {
-    var res = sync_request('GET', 'https://openexchangerates.org/api/latest.json?app_id=adbe1e817ef84112ba152d896d965b8e');
-    var json = JSON.parse(res.body.toString());
-    
-    var resultNumber = receivedNumber / json.rates.SGD;
+    //    var res = sync_request('GET', 'https://openexchangerates.org/api/latest.json?app_id=adbe1e817ef84112ba152d896d965b8e');
+    //    var json = JSON.parse(res.body.toString());
+
+    MongoClient.connect(mongodbURL, function (err, db) {
+        if (err) throw err;
+        var query = {
+            Currency: "SGD"
+        };
+        db.collection(mongodbCollectionName).find(query).toArray(
+            function (err, result) {
+                if (err) throw err;
+                console.log("SGD Rate is >>>>>>>>>>>>");
+                console.log(result[0]['Rate']);
+                db.close();
+            }
+        );
+    });
+
+    var resultNumber = receivedNumber / 2;
     var response = {
         "text": receivedNumber + " SGD is equivalent of " + resultNumber + " USD"
     }
