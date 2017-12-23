@@ -165,10 +165,7 @@ Try to send a number.
     return response;
 }
 
-function convertCurrency(receivedNumber) {
-    //    var res = sync_request('GET', 'https://openexchangerates.org/api/latest.json?app_id=adbe1e817ef84112ba152d896d965b8e');
-    //    var json = JSON.parse(res.body.toString());
-
+function convertCurrency(receivedNumber, sender_psid, callback) {
     MongoClient.connect(mongodbURL, function (err, db) {
         if (err) throw err;
         var query = {
@@ -177,19 +174,19 @@ function convertCurrency(receivedNumber) {
         db.collection(mongodbCollectionName).find(query).toArray(
             function (err, result) {
                 if (err) throw err;
-                console.log("SGD Rate is >>>>>>>>>>>>");
-                console.log(result[0]['Rate']);
+                console.log("SGD Rate is >>>>>>>>>>>>" + result[0]['Rate']);
+                console.log("Number is >>>>>>>>>>>>" + receivedNumber);
+                
+                var resultNumber = receivedNumber / result[0]['Rate'];
+                var response = {
+                    "text": receivedNumber.toFixed(2) + " SGD is equivalent of " + resultNumber.toFixed(2) + " USD"
+                };
+                // Use callback to send convertion result message
+                callback(sender_psid, response);
                 db.close();
             }
         );
     });
-
-    var resultNumber = receivedNumber / 2;
-    var response = {
-        "text": receivedNumber + " SGD is equivalent of " + resultNumber + " USD"
-    }
-
-    return response;
 }
 
 // Handles messages events
@@ -205,15 +202,20 @@ function handleMessage(sender_psid, received_message) {
             case 'hello':
             case 'hi':
                 response = hiMessage(sender_psid);
+                // Sends the response message
+                callSendAPI(sender_psid, response);
                 break;
             default:
-                var numericMessage = parseInt(messageText);
+                var numericMessage = parseFloat(messageText);
                 if (isNaN(numericMessage)) {
                     response = {
                         "text": `You sent the message: "${messageText}". Now send me an number!`
                     }
+                    // Sends the response message
+                    callSendAPI(sender_psid, response);
                 } else {
-                    response = convertCurrency(numericMessage);
+//                    TODO, here should have a callback for: callSendAPI(sender_psid, response);
+                    convertCurrency(numericMessage, sender_psid, callSendAPI);
                 }
         }
     } else if (received_message.attachments) {
@@ -225,8 +227,8 @@ function handleMessage(sender_psid, received_message) {
                 "payload": {
                     "template_type": "generic",
                     "elements": [{
-                        "title": "Is this the right picture?",
-                        "subtitle": "Tap a button to answer.",
+                        "title": "Oops I received your picture",
+                        "subtitle": "...",
                         "image_url": attachment_url,
                         "buttons": [
                             {
@@ -244,10 +246,9 @@ function handleMessage(sender_psid, received_message) {
                 }
             }
         }
+        // Sends the response message
+        callSendAPI(sender_psid, response);
     }
-
-    // Sends the response message
-    callSendAPI(sender_psid, response);
 }
 
 // Handles messaging_postbacks events
@@ -260,11 +261,11 @@ function handlePostback(sender_psid, received_postback) {
     // Set the response based on the postback payload
     if (payload === 'yes') {
         response = {
-            "text": "Thanks!"
+            "text": "Haha, thanks!"
         }
     } else if (payload === 'no') {
         response = {
-            "text": "Oops, try sending another image."
+            "text": "Oops, sorry we don't support images at this moment."
         }
     }
     // Send the message to acknowledge the postback
